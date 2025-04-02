@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Author: Luigi Freda 
 # This file is part of https://github.com/luigifreda/pyslam
 
@@ -14,51 +14,73 @@ ROOT_DIR="$SCRIPT_DIR"
 
 # ====================================================
 # import the bash utils 
-. "$ROOT_DIR"/bash_utils.sh 
+# . "$ROOT_DIR"/bash_utils.sh 
 
-STARTING_DIR=`pwd`  
+# STARTING_DIR=`pwd`  
 cd "$ROOT_DIR" 
 
 # ====================================================
+
+replace_line() {
+  local file="$1"
+  local target_line="$2"
+  local new_line="$3"
+
+  if [[ ! -f "$file" ]]; then
+    echo "File '$file' does not exist."
+    return 1
+  fi
+
+  # Escape characters that sed needs escaped
+  local escaped_target_line
+  local escaped_new_line
+
+  escaped_target_line=$(printf '%s' "$target_line" | sed -e 's/[\/&]/\\&/g')
+  escaped_new_line=$(printf '%s' "$new_line" | sed -e 's/[\/&]/\\&/g')
+
+  # Now safely perform the replacement
+  sed -i "s|^$escaped_target_line\$|$escaped_new_line|" "$file"
+}
+
 
 print_blue '================================================'
 print_blue "Building Thirdparty"
 print_blue '================================================'
 
-export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
+# export WITH_PYTHON_INTERP_CHECK=ON  # in order to detect the correct python interpreter 
 
 # ====================================================
 # detect and configure CUDA 
-. cuda_config.sh
+# . cuda_config.sh
 
 # ====================================================
 # activate pyslam python environment
-. pyenv-activate.sh
+# . pyenv-activate.sh
 
 # ====================================================
 # check if we have external options
-EXTERNAL_OPTIONS=$@
-if [[ -n "$EXTERNAL_OPTIONS" ]]; then
-    echo "external option: $EXTERNAL_OPTIONS" 
-fi
+# EXTERNAL_OPTIONS=$@
+# if [[ -n "$EXTERNAL_OPTIONS" ]]; then
+#     echo "external option: $EXTERNAL_OPTIONS" 
+# fi
 
-# check if we want to add a python interpreter check
-if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
-    echo "WITH_PYTHON_INTERP_CHECK: $WITH_PYTHON_INTERP_CHECK " 
-    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
-fi
+# # check if we want to add a python interpreter check
+# if [[ -n "$WITH_PYTHON_INTERP_CHECK" ]]; then
+#     echo "WITH_PYTHON_INTERP_CHECK: $WITH_PYTHON_INTERP_CHECK " 
+#     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DWITH_PYTHON_INTERP_CHECK=$WITH_PYTHON_INTERP_CHECK"
+# fi
 
-OpenCV_DIR="$ROOT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
-if [[ -d "$OpenCV_DIR" ]]; then
-    EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
-fi 
+# OpenCV_DIR="$ROOT_DIR/thirdparty/opencv/install/lib/cmake/opencv4"
+# if [[ -d "$OpenCV_DIR" ]]; then
+#     EXTERNAL_OPTIONS="$EXTERNAL_OPTIONS -DOpenCV_DIR=$OpenCV_DIR"
+# fi 
 
-echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
+# echo "EXTERNAL_OPTIONS: $EXTERNAL_OPTIONS"
 
 # ====================================================
 
-CURRENT_USED_PYENV=$(get_virtualenv_name)
-print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
+# CURRENT_USED_PYENV=$(get_virtualenv_name)
+# print_blue "Currently used pyenv: $CURRENT_USED_PYENV"
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/orbslam2_features ..."
@@ -69,86 +91,40 @@ cd "$ROOT_DIR"
 print_blue '================================================'
 print_blue "Configuring and building thirdparty/Pangolin ..."
 
-INSTALL_PANGOLIN_ORIGINAL=0
 cd thirdparty
-if [ $INSTALL_PANGOLIN_ORIGINAL -eq 1 ] ; then
-    # N.B.: pay attention this will generate a module 'pypangolin' ( it does not have the methods dcam.SetBounds(...) and pangolin.DrawPoints(points, colors)  )
-    if [ ! -d "pangolin" ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            sudo apt-get install -y libglew-dev
-        fi     
-        git clone https://github.com/stevenlovegrove/Pangolin.git pangolin
-        cd pangolin
-        git submodule init && git submodule update
-        cd ..
-    fi
-    cd pangolin
-    make_dir build 
-    if [ ! -f build/src/libpangolin.so ]; then
-        cd build
-        cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON $EXTERNAL_OPTIONS
-        make -j8
-        cd build/src
-        ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
-    fi
-else
-    # N.B.: pay attention this will generate a module 'pypangolin' 
-    if [ ! -d "pangolin" ]; then
-        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            echo "OS: $OSTYPE"   
-            sudo apt-get install -y libglew-dev
-        fi
-        git clone --recursive https://gitlab.com/luigifreda/pypangolin.git pangolin        
-        cd pangolin
-        git apply ../pangolin.patch
-        cd ..
-    fi
-    cd pangolin
-    if [ ! -f pypangolin.cpython-*.so ]; then   
-        make_dir build   
-        cd build
-        cmake .. -DBUILD_PANGOLIN_LIBREALSENSE=OFF -DBUILD_PANGOLIN_LIBREALSENSE2=OFF \
-                 -DBUILD_PANGOLIN_OPENNI=OFF -DBUILD_PANGOLIN_OPENNI2=OFF \
-                 -DBUILD_PANGOLIN_FFMPEG=OFF -DBUILD_PANGOLIN_LIBOPENEXR=OFF $EXTERNAL_OPTIONS # disable realsense 
-        make -j8
-        cd ..
-        #python setup.py install
-    fi
-fi
+git clone https://github.com/stevenlovegrove/Pangolin.git pangolin
+cd pangolin
+git submodule init && git submodule update
+mkdir build
+cd build
+cmake ../ -DAVFORMAT_INCLUDE_DIR="" -DCPP11_NO_BOOST=ON
+make -j8
+ln -s pypangolin.*-linux-gnu.so  pangolin.linux-gnu.so
 cd "$ROOT_DIR"
-
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/g2o ..."
 
 cd thirdparty
-if [ ! -d g2opy ]; then
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        sudo apt-get install -y libsuitesparse-dev libeigen3-dev
-    fi     
-	git clone https://github.com/uoip/g2opy.git
-    cd g2opy
-    G2OPY_REVISION=5587024
-    git checkout $G2OPY_REVISION
-    git apply ../g2opy.patch
-    cd ..     
-fi
+git clone https://github.com/uoip/g2opy.git
 cd g2opy
-if [ ! -f lib/g2o.cpython*.so ]; then  
-    make_buid_dir
-    cd build
-    cmake .. $EXTERNAL_OPTIONS
-    make -j8
-    cd ..
-    #python3 setup.py install --user
-fi    
+git checkout 5587024
+git apply ../g2opy.patch
+replace_line "python/CMakeLists.txt" "LIST(APPEND CMAKE_MODULE_PATH \${PROJECT_SOURCE_DIR}/EXTERNAL/pybind11/tools)" ""
+replace_line "python/CMakeLists.txt" "include_directories(\${PROJECT_SOURCE_DIR}/EXTERNAL/pybind11/include)" ""
+replace_line "python/CMakeLists.txt" "include(pybind11Tools)" "find_package(pybind11 REQUIRED)"
+mkdir build
+cd build
+cmake .. $EXTERNAL_OPTIONS
+make -j8
 cd $ROOT_DIR
-
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow3 ..."
 
 cd thirdparty/pydbow3
+replace_line "CMakeLists.txt" "add_subdirectory(modules/pybind11)" "find_package(pybind11 REQUIRED)"
+
 ./build.sh $EXTERNAL_OPTIONS
 
 cd $ROOT_DIR
@@ -157,6 +133,7 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pydbow2 ..."
 
 cd thirdparty/pydbow2
+replace_line "CMakeLists.txt" "add_subdirectory(modules/pybind11)" "find_package(pybind11 REQUIRED)"
 ./build.sh $EXTERNAL_OPTIONS
 
 cd $ROOT_DIR
@@ -166,26 +143,37 @@ print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/pyibow ..."
 
 cd thirdparty/pyibow
+replace_line "CMakeLists.txt" "add_subdirectory(modules/pybind11)" "find_package(pybind11 REQUIRED)"
 ./build.sh $EXTERNAL_OPTIONS
 
 cd $ROOT_DIR
 
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    print_blue "=================================================================="
-    print_blue "Configuring and building thirdparty/open3d ..."
+# if [[ "$OSTYPE" == "darwin"* ]]; then
+#     print_blue "=================================================================="
+#     print_blue "Configuring and building thirdparty/open3d ..."
 
-    # NOTE: Under mac I got segmentation faults when trying to use open3d python bindings
-    #       This happends when trying to load the open3d dynamic library.
-    ./install_open3d_python.sh
+#     # NOTE: Under mac I got segmentation faults when trying to use open3d python bindings
+#     #       This happends when trying to load the open3d dynamic library.
+#     ./install_open3d_python.sh
 
-    cd $ROOT_DIR
-fi 
+#     cd $ROOT_DIR
+# fi 
 
 print_blue "=================================================================="
 print_blue "Configuring and building thirdparty/gtsam ..."
-./install_gtsam.sh
 
+cd thirdparty
+git clone https://github.com/borglab/gtsam.git gtsam
+cd gtsam
+git checkout 4.2.0
+git apply ../gtsam.patch
+cd $ROOT_DIR
+replace_line "install_gtsam.sh" "git checkout tags/4.2a9" "git checkout 4.2.0"
+replace_line "install_gtsam.sh" "-DGTSAM_USE_SYSTEM_EIGEN=ON" "-DGTSAM_USE_SYSTEM_METIS=ON -DGTSAM_ENABLE_BOOST_SERIALIZATION=OFF -DGTSAM_USE_SYSTEM_EIGEN=ON"
+./install_gtsam.sh
+cd thirdparty/gtsam/build
+make python-install
 cd $ROOT_DIR
 
 
@@ -271,84 +259,84 @@ fi
 
 cd $ROOT_DIR
 
-print_blue "=================================================================="
-print_blue "Configuring and building thirdparty/mast3r ..."
+# print_blue "=================================================================="
+# print_blue "Configuring and building thirdparty/mast3r ..."
 
-if [ "$CUDA_VERSION" != "0" ]; then
-    # we need CUDA
+# if [ "$CUDA_VERSION" != "0" ]; then
+#     # we need CUDA
 
-    cd thirdparty
-    if [ ! -d mast3r ]; then
-        git clone --recursive https://github.com/naver/mast3r mast3r
-        git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
-        cd mast3r
-        git apply ../mast3r.patch
-        # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
-        cd dust3r 
-        git apply ../../mast3r-dust3r.patch
-        cd croco 
-        git apply ../../../mast3r-dust3r-croco.patch
-        cd models/curope/
-        if [ "$CUDA_VERSION" != "0" ]; then        
-            python setup.py build_ext --inplace
-        fi
-        cd ../../../../    
-        make_dir checkpoints
-        cd checkpoints
-        if [ ! -f MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth ]; then
-            wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
-        fi
-    fi 
-else
-    print_yellow "MASt3R requires CUDA. Skipping..."
-fi 
+#     cd thirdparty
+#     if [ ! -d mast3r ]; then
+#         git clone --recursive https://github.com/naver/mast3r mast3r
+#         git checkout e06b0093ddacfd8267cdafe5387954a650af0d3b
+#         cd mast3r
+#         git apply ../mast3r.patch
+#         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+#         cd dust3r 
+#         git apply ../../mast3r-dust3r.patch
+#         cd croco 
+#         git apply ../../../mast3r-dust3r-croco.patch
+#         cd models/curope/
+#         if [ "$CUDA_VERSION" != "0" ]; then        
+#             python setup.py build_ext --inplace
+#         fi
+#         cd ../../../../    
+#         make_dir checkpoints
+#         cd checkpoints
+#         if [ ! -f MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth ]; then
+#             wget https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+#         fi
+#     fi 
+# else
+#     print_yellow "MASt3R requires CUDA. Skipping..."
+# fi 
 
-cd $ROOT_DIR
+# cd $ROOT_DIR
 
-print_blue "=================================================================="
-print_blue "Configuring and building thirdparty/mvdust3r ..."
+# print_blue "=================================================================="
+# print_blue "Configuring and building thirdparty/mvdust3r ..."
 
-if [ "$CUDA_VERSION" != "0" ]; then
-    # we need CUDA
+# if [ "$CUDA_VERSION" != "0" ]; then
+#     # we need CUDA
 
-    cd thirdparty
-    if [ ! -d mvdust3r ]; then
-        git clone https://github.com/facebookresearch/mvdust3r.git mvdust3r
-        git checkout 430ca6630b07567cfb2447a4dcee9747b132d5c7
-        cd mvdust3r
-        git apply ../mvdust3r.patch
-        # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
-        cd croco/models/curope/
-        if [ "$CUDA_VERSION" != "0" ]; then        
-            python setup.py build_ext --inplace
-        fi
-        cd ../../../
-        make_dir checkpoints
-        cd checkpoints
-        if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth &
-        fi
-        if [ ! -f MVD.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth &
-        fi
-        if [ ! -f MVDp_s1.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth &
-        fi
-        if [ ! -f MVDp_s2.pth ]; then
-            wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
-        fi
+#     cd thirdparty
+#     if [ ! -d mvdust3r ]; then
+#         git clone https://github.com/facebookresearch/mvdust3r.git mvdust3r
+#         git checkout 430ca6630b07567cfb2447a4dcee9747b132d5c7
+#         cd mvdust3r
+#         git apply ../mvdust3r.patch
+#         # DUST3R relies on RoPE positional embeddings for which you can compile some cuda kernels for faster runtime.
+#         cd croco/models/curope/
+#         if [ "$CUDA_VERSION" != "0" ]; then        
+#             python setup.py build_ext --inplace
+#         fi
+#         cd ../../../
+#         make_dir checkpoints
+#         cd checkpoints
+#         if [ ! -f DUSt3R_ViTLarge_BaseDecoder_224_linear.pth ]; then    
+#             wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/DUSt3R_ViTLarge_BaseDecoder_224_linear.pth &
+#         fi
+#         if [ ! -f MVD.pth ]; then
+#             wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVD.pth &
+#         fi
+#         if [ ! -f MVDp_s1.pth ]; then
+#             wget https://huggingface.co/Zhenggang/MV-DUSt3R/resolve/main/checkpoints/MVDp_s1.pth &
+#         fi
+#         if [ ! -f MVDp_s2.pth ]; then
+#             wget https://huggingface.co/Zhenggang/MV-DUSt3R/blob/main/checkpoints/MVDp_s2.pth &
+#         fi
 
-        # Wait for all background download jobs to complete
-        wait
-    fi
+#         # Wait for all background download jobs to complete
+#         wait
+#     fi
 
-else 
-    print_yellow "MASt3R requires CUDA. Skipping..."
-fi
+# else 
+#     print_yellow "MASt3R requires CUDA. Skipping..."
+# fi
 
 echo "...done with thirdparty"
 
-cd "$STARTING_DIR"
+# cd "$STARTING_DIR"
 
 
 # NOTE: If you get build errors related to python interpreter check under Linux then run the following command:
